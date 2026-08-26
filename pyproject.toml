@@ -1,0 +1,17 @@
+[project]
+name = "proxy-exclusion-combinator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+license = { file = "LICENSE" }
+dependencies = [
+    "fastapi[standard]>=0.141.1",
+    "pyinstaller>=6.22.2",
+]
+
+[project.scripts]
+start = "start:start"
+
+[tool.uv]
+package = true
