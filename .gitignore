@@ -11,4 +11,4 @@ wheels/
 
 # Temp folders
 data/
-logs/
+/logs/

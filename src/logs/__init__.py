@@ -1,15 +1,4 @@
 # ----------------------------------------------------------------------------#
 # Project modules                                                             #
 # ----------------------------------------------------------------------------#
-from utilities.basic_utilities_project import add_workdir_in_PATH
-add_workdir_in_PATH()
-from src.router import web_start
-
-
-def start() -> None:
-    """Запуск проекта"""
-    web_start()
-
-
-if __name__ == "__main__":
-    start()
+from logs.loggers import get_smart_logger, SmartLogger
