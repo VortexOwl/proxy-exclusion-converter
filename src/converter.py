@@ -18,7 +18,7 @@ log.setLevel(cfg.log_level)
 uts: Utilities = Utilities()
 
 
-def combinator(file_location: Path) -> Path:
+def converter(file_location: Path) -> Path:
     """Преобразование файла в список исключений для прокси."""
     marker = cfg.marker
 
