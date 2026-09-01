@@ -13,7 +13,7 @@ from webbrowser import open as web_open
 # Project modules                                                             #
 # ----------------------------------------------------------------------------#
 from src.config import ServerConfig, Config
-from src.combinator import combinator, clear_tmp_folder
+from src.converter import converter, clear_tmp_folder
 from src.logs import get_smart_logger, SmartLogger
 
 # ----------------------------------------------------------------------------#
@@ -57,7 +57,7 @@ async def lifespan(web: FastAPI):
         
 
 web = FastAPI(
-    title = "🌌 Proxy Combinator API",
+    title = "🌌 Proxy converter API",
     swagger_ui_parameters = {
         "defaultModelsExpandDepth": -1,
         "tryItOutEnabled": True,
@@ -77,7 +77,7 @@ async def root() -> RedirectResponse:
 
 
 @web.post(
-        path='/combinator', 
+        path='/converter', 
         tags=["📦 Комбинатор"], 
         summary="Комбинатор исключений для прокси.", 
         description=(
@@ -85,7 +85,7 @@ async def root() -> RedirectResponse:
             "из списков, что содержатся в файле и сохраняет их в новый файл."
             f" Маркером строки с доменами служит \"{cfg.marker}\".")
         )
-async def web_combinator(upload_file: Annotated[UploadFile, File(alias="Proxy exception")]) -> FileResponse:
+async def web_converter(upload_file: Annotated[UploadFile, File(alias="Proxy exception")]) -> FileResponse:
     data_folder = Path(cfg.data_folder)
     data_folder.mkdir(parents=True, exist_ok=True)
     file_location = data_folder / upload_file.filename
@@ -93,7 +93,7 @@ async def web_combinator(upload_file: Annotated[UploadFile, File(alias="Proxy ex
     with file_location.open('wb') as buffer:
         copyfileobj(upload_file.file, buffer)
 
-    result_location = combinator(file_location=file_location)
+    result_location = converter(file_location=file_location)
     return FileResponse(
         path=result_location,
         filename=result_location.name,
