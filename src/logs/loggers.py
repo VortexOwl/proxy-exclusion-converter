@@ -1,6 +1,7 @@
 # ----------------------------------------------------------------------------#
 # Embedded libraries                                                          #
 # ----------------------------------------------------------------------------#
+from colorama import Fore as color_Fore
 from logging import (
     Logger as LibLogger, StreamHandler as LibStreamHandler, 
     FileHandler as LibFileHandler, Formatter as LibFormatter, 
@@ -12,8 +13,6 @@ from os import makedirs
 from sys import stdout, exit
 from typing import Any, Optional, Dict
 
-from colorama import Fore as color_Fore
-
 
 class SmartLogger(LibLogger):
     """Logger с дополнительными возможностями форматирования и кастомными уровнями.
@@ -21,6 +20,7 @@ class SmartLogger(LibLogger):
     Расширяет стандартный `logging.Logger`, добавляя:
     * флаг `raw` — вывод сообщения без стандартного форматирования;
     * флаг `empty_console` — подавление вывода в консоль;
+    * флаг `pretty` — вывод сообщения с упрощенным форматированием;
     * метод `add_custom_level` для регистрации пользовательских уровней логирования.
     """
 
@@ -42,30 +42,34 @@ class SmartLogger(LibLogger):
 
     def _prepare_extra(
         self,
+        pretty: bool,
         raw: bool,
         empty_console: bool,
-        pretty: bool,
         extra: Optional[Dict[str, Any]],
     ) -> Optional[Dict[str, Any]]:
-        """Формирует поле `extra` с флагами форматирования.
+        """Подготавливает словарь `extra` с параметрами форматирования.
 
-        Если `raw` или `empty_console` заданы, то в словарь `extra`
-        добавляются соответствующие ключи.
+        Если хотя бы один из флагов форматирования установлен в `True`,
+        соответствующие значения добавляются в словарь `extra`.
 
         Args:
-            raw: Если True, форматирование сообщения упрощается до `{message}`.
-            empty_console: Если True, сообщение не выводится в консоль.
-            extra: Дополнительные данные для лог-записи.
+            pretty: Если `True`, сообщение выводится в упрощённом формате
+                `{levelname}:     {message}`. Имя уровня окрашивается
+                в цвет, соответствующий уровню.
+            raw: Если `True`, сообщение выводится в формате `{message}`.
+            empty_console: Если `True`, сообщение не выводится в консоль.
+            extra: Дополнительные данные записи журнала.
 
         Returns:
-            Обновлённый словарь `extra` или None.
+            Обновлённый словарь `extra` или `None`, если параметры
+            форматирования не заданы.
         """
 
-        if raw or empty_console or pretty: 
+        if pretty or raw or empty_console: 
             if extra is None: extra = {}
+            extra['pretty'] = pretty
             extra['raw'] = raw
             extra['empty_console'] = empty_console
-            extra['pretty'] = pretty
         return extra
 
 
@@ -73,20 +77,21 @@ class SmartLogger(LibLogger):
         self, 
         msg: Any, 
         *args: Any, 
+        pretty: bool = False,
         raw: bool = False,
         empty_console: bool = False,
-        pretty: bool = False,
         exc_info: Any = None, 
         stack_info: bool = False, 
         stacklevel: int = 2, 
         extra: Optional[Dict[str, Any]] = None, 
         **kwargs: Any,
     ) -> None:
-        """Логирует сообщение уровня DEBUG с дополнительными флагами форматирования.
+        """Записывает сообщение уровня `DEBUG` с дополнительными параметрами форматирования.
 
         Args:
             msg: Сообщение для логирования.
             *args: Позиционные аргументы для форматирования сообщения.
+            pretty: Если True, сообщение выводится в упрощенном форматировании.
             raw: Если True, сообщение выводится без стандартного форматирования.
             empty_console: Если True, подавляет вывод в консоль.
             exc_info: Информация об исключении или флаг для её добавления.
@@ -96,7 +101,7 @@ class SmartLogger(LibLogger):
             **kwargs: Дополнительные параметры, пробрасываемые в базовый logger.
         """
 
-        extra = self._prepare_extra(raw=raw, empty_console=empty_console, pretty=pretty, extra=extra)
+        extra = self._prepare_extra(pretty=pretty, raw=raw, empty_console=empty_console, extra=extra)
         super().debug(msg, *args, exc_info=exc_info, stack_info=stack_info, 
                    stacklevel=stacklevel, extra=extra, **kwargs)
     
@@ -105,20 +110,21 @@ class SmartLogger(LibLogger):
         self, 
         msg: Any, 
         *args: Any, 
+        pretty: bool = False,
         raw: bool = False,
         empty_console: bool = False,
-        pretty: bool = False,
         exc_info: Any = None, 
         stack_info: bool = False, 
         stacklevel: int = 2, 
         extra: Optional[Dict[str, Any]] = None, 
         **kwargs: Any,
     ) -> None:
-        """Логирует сообщение уровня INFO с дополнительными флагами форматирования.
+        """Записывает сообщение уровня `INFO` с дополнительными параметрами форматирования.
 
         Args:
             msg: Сообщение для логирования.
             *args: Позиционные аргументы для форматирования сообщения.
+            pretty: Если True, сообщение выводится в упрощенном форматировании.
             raw: Если True, сообщение выводится без стандартного форматирования.
             empty_console: Если True, подавляет вывод в консоль.
             exc_info: Информация об исключении или флаг для её добавления.
@@ -128,7 +134,7 @@ class SmartLogger(LibLogger):
             **kwargs: Дополнительные параметры, пробрасываемые в базовый logger.
         """
 
-        extra = self._prepare_extra(raw=raw, empty_console=empty_console, pretty=pretty, extra=extra)
+        extra = self._prepare_extra(pretty=pretty, raw=raw, empty_console=empty_console, extra=extra)
         super().info(msg, *args, exc_info=exc_info, stack_info=stack_info, 
                    stacklevel=stacklevel, extra=extra, **kwargs)
 
@@ -137,20 +143,21 @@ class SmartLogger(LibLogger):
         self, 
         msg: Any, 
         *args: Any, 
+        pretty: bool = False,
         raw: bool = False,
         empty_console: bool = False,
-        pretty: bool = False,
         exc_info: Any = None, 
         stack_info: bool = False, 
         stacklevel: int = 2, 
         extra: Optional[Dict[str, Any]] = None, 
         **kwargs: Any,
     ) -> None:
-        """Логирует сообщение уровня WARNING с дополнительными флагами форматирования.
+        """Записывает сообщение уровня `WARNING` с дополнительными параметрами форматирования.
 
         Args:
             msg: Сообщение для логирования.
             *args: Позиционные аргументы для форматирования сообщения.
+            pretty: Если True, сообщение выводится в упрощенном форматировании.
             raw: Если True, сообщение выводится без стандартного форматирования.
             empty_console: Если True, подавляет вывод в консоль.
             exc_info: Информация об исключении или флаг для её добавления.
@@ -160,7 +167,7 @@ class SmartLogger(LibLogger):
             **kwargs: Дополнительные параметры, пробрасываемые в базовый logger.
         """
         
-        extra = self._prepare_extra(raw=raw, empty_console=empty_console, pretty=pretty, extra=extra)
+        extra = self._prepare_extra(pretty=pretty, raw=raw, empty_console=empty_console, extra=extra)
         super().warning(msg, *args, exc_info=exc_info, stack_info=stack_info, 
                    stacklevel=stacklevel, extra=extra, **kwargs)
 
@@ -169,20 +176,21 @@ class SmartLogger(LibLogger):
         self, 
         msg: Any, 
         *args: Any, 
+        pretty: bool = False,
         raw: bool = False,
         empty_console: bool = False,
-        pretty: bool = False,
         exc_info: Any = None, 
         stack_info: bool = False, 
         stacklevel: int = 2, 
         extra: Optional[Dict[str, Any]] = None, 
         **kwargs: Any,
     ) -> None:
-        """Логирует сообщение уровня ERROR с дополнительными флагами форматирования.
+        """Записывает сообщение уровня `ERROR` с дополнительными параметрами форматирования.
 
         Args:
             msg: Сообщение для логирования.
             *args: Позиционные аргументы для форматирования сообщения.
+            pretty: Если True, сообщение выводится в упрощенном форматировании.
             raw: Если True, сообщение выводится без стандартного форматирования.
             empty_console: Если True, подавляет вывод в консоль.
             exc_info: Информация об исключении или флаг для её добавления.
@@ -192,7 +200,7 @@ class SmartLogger(LibLogger):
             **kwargs: Дополнительные параметры, пробрасываемые в базовый logger.
         """
 
-        extra = self._prepare_extra(raw=raw, empty_console=empty_console, pretty=pretty, extra=extra)
+        extra = self._prepare_extra(pretty=pretty, raw=raw, empty_console=empty_console, extra=extra)
         super().error(msg, *args, exc_info=exc_info, stack_info=stack_info, 
                    stacklevel=stacklevel, extra=extra, **kwargs)
 
@@ -201,9 +209,9 @@ class SmartLogger(LibLogger):
         self, 
         msg: Any, 
         *args: Any, 
+        pretty: bool = False,
         raw: bool = False,
         empty_console: bool = False,
-        pretty: bool = False,
         is_continue: bool = False,
         exc_info: Any = None, 
         stack_info: bool = False, 
@@ -211,11 +219,12 @@ class SmartLogger(LibLogger):
         extra: Optional[Dict[str, Any]] = None, 
         **kwargs: Any,
     ) -> None:
-        """Логирует сообщение уровня CRITICAL с дополнительными флагами форматирования.
+        """Записывает сообщение уровня `CRITICAL` с дополнительными параметрами форматирования.
 
         Args:
             msg: Сообщение для логирования.
             *args: Позиционные аргументы для форматирования сообщения.
+            pretty: Если True, сообщение выводится в упрощенном форматировании.
             raw: Если True, сообщение выводится без стандартного форматирования.
             empty_console: Если True, подавляет вывод в консоль.
             is_continue: Если True, продолжает работу программы после своего вызова.
@@ -226,7 +235,7 @@ class SmartLogger(LibLogger):
             **kwargs: Дополнительные параметры, пробрасываемые в базовый logger.
         """
         
-        extra = self._prepare_extra(raw=raw, empty_console=empty_console, pretty=pretty, extra=extra)
+        extra = self._prepare_extra(pretty=pretty, raw=raw, empty_console=empty_console, extra=extra)
         super().critical(msg, *args, exc_info=exc_info, stack_info=stack_info, 
                    stacklevel=stacklevel, extra=extra, **kwargs)
 
@@ -237,9 +246,9 @@ class SmartLogger(LibLogger):
         self, 
         msg: Any, 
         *args: Any, 
+        pretty: bool = False,
         raw: bool = False,
         empty_console: bool = False,
-        pretty: bool = False,
         is_continue: bool = False,
         exc_info: Any = None, 
         stack_info: bool = False, 
@@ -247,11 +256,12 @@ class SmartLogger(LibLogger):
         extra: Optional[Dict[str, Any]] = None, 
         **kwargs: Any,
     ) -> None:
-        """Логирует сообщение уровня CRITICAL с дополнительными флагами форматирования.
+        """Записывает сообщение уровня `CRITICAL` с дополнительными параметрами форматирования.
 
         Args:
             msg: Сообщение для логирования.
             *args: Позиционные аргументы для форматирования сообщения.
+            pretty: Если True, сообщение выводится в упрощенном форматировании.
             raw: Если True, сообщение выводится без стандартного форматирования.
             empty_console: Если True, подавляет вывод в консоль.
             is_continue: Если True, продолжает работу программы после своего вызова.
@@ -262,7 +272,7 @@ class SmartLogger(LibLogger):
             **kwargs: Дополнительные параметры, пробрасываемые в базовый logger.
         """
         
-        extra = self._prepare_extra(raw=raw, empty_console=empty_console, extra=extra)
+        extra = self._prepare_extra(pretty=pretty, raw=raw, empty_console=empty_console, extra=extra)
         super().critical(msg, *args, exc_info=exc_info, stack_info=stack_info, 
                    stacklevel=stacklevel, extra=extra, **kwargs)
         
@@ -277,11 +287,11 @@ class SmartLogger(LibLogger):
         filename: Optional[str] = None, 
         is_create_file_level: bool = True
     ) -> None:
-        """Регистрирует новый пользовательский уровень логирования и метод для него.
+        """Регистрирует пользовательский уровень логирования и метод для него.
 
-        Создает новый уровень в `logging`, добавляет соответствующий
-        метод на класс `SmartLogger` и, при необходимости, файловый
-        handler, пишущий только этот уровень.
+        Добавляет новый уровень в модуль `logging`, создаёт соответствующий
+        метод в классе `SmartLogger` и при необходимости добавляет файловый
+        handler, который записывает только сообщения этого уровня.
 
         Args:
             level_name: Имя уровня (например, "TRACE").
@@ -293,7 +303,7 @@ class SmartLogger(LibLogger):
 
         Raises:
             ValueError: Если `is_duplicate_level_num` False и уровень уже существует.
-            AttributeError: Если метод с таким именем уже есть у `SmartLogger`.
+            AttributeError: Если метод с таким именем уже существует в `SmartLogger`.
         """
 
         if not is_duplicate_level_num:
@@ -323,15 +333,17 @@ class SmartLogger(LibLogger):
 
 
 class StreamHandler(LibStreamHandler):
-    """Обработчик вывода в поток с поддержкой 'raw' и 'empty_console' флагов.
+    """Обработчик потокового вывода с поддержкой специальных флагов.
 
-    Использует разные форматеры в зависимости от полей записи лога:
+    Использует разные форматеры в зависимости от параметров записи:
     * `record.raw == True` — выводится только сообщение (`{message}`);
+    * `record.pretty == True` — используется упрощённый цветной формат;
     * `record.empty_console == True` — запись не выводится в консоль.
+    
     """
 
     def __init__(self, stream=None) -> None:
-        """Создает StreamHandler с преднастоенными форматерами.
+        """Создаёт обработчик потока с предустановленными форматерами.
 
         Args:
             stream: Поток вывода (по умолчанию sys.stdout).
@@ -367,7 +379,8 @@ class StreamHandler(LibStreamHandler):
         """Выводит лог-запись в поток в зависимости от флагов записи.
 
         Если у записи установлен `empty_console`, вывод подавляется.
-        В противном случае выбирается форматер в зависимости от флага `raw`.
+        В противном случае форматер выбирается по значениям флагов
+        `raw` и `pretty`.
 
         Args:
             record: Лог-запись для вывода.
@@ -399,16 +412,17 @@ class StreamHandler(LibStreamHandler):
 def add_handler(logger: SmartLogger, level: int, filename: Optional[str] = None, exact: bool = False) -> None:
     """Добавляет обработчик к logger.
 
-    В зависимости от `filename` добавляется либо файловый, либо потоковый
-    обработчик. При `exact=True` обработчик будет получать только записи
-    строго заданного уровня.
+    Если указан `filename`, создаётся файловый обработчик; в противном
+    случае используется потоковый обработчик с выводом в `stdout`.
+    При `exact=True` обработчик принимает только записи строго
+    заданного уровня.
 
     Args:
         logger: Экземпляр SmartLogger, к которому добавляется обработчик.
         level: Уровень логирования для обработчика.
-        filename: Путь к файлу логов. Если None, используется поток stdout.
-        exact: Если True, обработчик фильтрует записи по точному соответствию
-            уровня `level`.
+        filename: Путь к файлу логов. Если `None`, используется `stdout`.
+        exact: Если `True`, обработчик фильтрует записи по точному соответствию
+            с уровнем `level`.
     """
     
     if filename:
