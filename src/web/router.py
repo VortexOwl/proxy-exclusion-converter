@@ -13,7 +13,7 @@ from webbrowser import open as web_open
 # Project modules                                                             #
 # ----------------------------------------------------------------------------#
 from src.config import ServerConfig, Config
-from src.converter import converter, clear_tmp_folder
+from src.app import ApplicationService as app
 from src.logs import get_smart_logger, SmartLogger
 
 # ----------------------------------------------------------------------------#
@@ -47,7 +47,7 @@ async def lifespan(web: FastAPI):
     log.info("🛑 Сервер останавливается...", pretty=True)
     log.debug("Начинается очистка временных файлов.", pretty=True)
 
-    err_clear_folder = clear_tmp_folder(data_folder)
+    err_clear_folder = app.clear_tmp_folder(data_folder)
     if err_clear_folder is None:
         log.debug("Очистка временных файлов прошла успешно.", pretty=True)
     else:
@@ -93,7 +93,7 @@ async def web_converter(upload_file: Annotated[UploadFile, File(alias="Proxy exc
     with file_location.open('wb') as buffer:
         copyfileobj(upload_file.file, buffer)
 
-    result_location = converter(file_location=file_location)
+    result_location = app.converter(file_location=file_location)
     return FileResponse(
         path=result_location,
         filename=result_location.name,

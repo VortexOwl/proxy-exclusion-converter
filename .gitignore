@@ -9,6 +9,6 @@ wheels/
 # Virtual environments
 .venv
 
-# Temp folders
-data/
+# Local project files
+/data/
 /logs/
