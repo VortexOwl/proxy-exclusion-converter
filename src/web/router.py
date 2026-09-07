@@ -13,7 +13,7 @@ from webbrowser import open as web_open
 # Project modules                                                             #
 # ----------------------------------------------------------------------------#
 from src.config import ServerConfig, Config
-from src.app import ApplicationService
+from src.app import ApplicationService as app
 from src.logs import get_smart_logger, SmartLogger
 
 # ----------------------------------------------------------------------------#
@@ -24,7 +24,6 @@ from fastapi.responses import RedirectResponse, FileResponse
 from uvicorn import run as uvicorn_run
 
 
-app = ApplicationService()
 cfg: Config = Config()
 log: SmartLogger = get_smart_logger()
 log.setLevel(cfg.log_level)
