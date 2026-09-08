@@ -5,23 +5,27 @@ import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from shutil import copyfileobj
-from typing import Annotated
 from time import sleep as time_sleep
+from typing import Annotated
 from webbrowser import open as web_open
-
-# ----------------------------------------------------------------------------#
-# Project modules                                                             #
-# ----------------------------------------------------------------------------#
-from src.config import ServerConfig, Config
-from src.app import ApplicationService as app
-from src.logs import get_smart_logger, SmartLogger
 
 # ----------------------------------------------------------------------------#
 # External libraries                                                          #
 # ----------------------------------------------------------------------------#
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from uvicorn import run as uvicorn_run
+
+# ----------------------------------------------------------------------------#
+# Project modules                                                             #
+# ----------------------------------------------------------------------------#
+from src.app import ApplicationService as app
+from src.config import Config, ServerConfig
+from src.logs import SmartLogger, get_smart_logger
+
+# ----------------------------------------------------------------------------#
+# Application code                                                            #
+# ----------------------------------------------------------------------------#
 
 
 cfg: Config = Config()
@@ -51,54 +55,56 @@ async def lifespan(web: FastAPI):
     if err_clear_folder is None:
         log.debug("Очистка временных файлов прошла успешно.", pretty=True)
     else:
-        log.debug(f"Очистка временных файлов прошла с ошибкой: {err_clear_folder}", pretty=True)
+        log.debug(
+            f"Очистка временных файлов прошла с ошибкой: {err_clear_folder}",
+            pretty=True,
+        )
     time_sleep(4.5)
 
-        
 
 web = FastAPI(
-    title = "🌌 Proxy converter API",
-    swagger_ui_parameters = {
+    title="🌌 Proxy converter API",
+    swagger_ui_parameters={
         "defaultModelsExpandDepth": -1,
         "tryItOutEnabled": True,
         "filter": True,
-        "displayRequestDuration": True
+        "displayRequestDuration": True,
     },
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
-@web.get('/', include_in_schema=False)
+@web.get("/", include_in_schema=False)
 async def root() -> RedirectResponse:
-    return RedirectResponse(
-        url='/docs',
-        status_code=307
-    )
+    return RedirectResponse(url="/docs", status_code=307)
 
 
 @web.post(
-        path='/converter', 
-        tags=["📦 Комбинатор"], 
-        summary="Комбинатор исключений для прокси.", 
-        description=(
-            "На вход подается Markdown файл. Комбинатор вытаскивает домены "
-            "из списков, что содержатся в файле и сохраняет их в новый файл."
-            f" Маркером строки с доменами служит \"{cfg.marker}\".")
-        )
-async def web_converter(upload_file: Annotated[UploadFile, File(alias="Proxy exception")]) -> FileResponse:
+    path="/converter",
+    tags=["📦 Комбинатор"],
+    summary="Комбинатор исключений для прокси.",
+    description=(
+        "На вход подается Markdown файл. Комбинатор вытаскивает домены "
+        "из списков, что содержатся в файле и сохраняет их в новый файл."
+        f' Маркером строки с доменами служит "{cfg.marker}".'
+    ),
+)
+async def web_converter(
+    upload_file: Annotated[UploadFile, File(alias="Proxy exception")],
+) -> FileResponse:
     data_folder = Path(cfg.data_folder)
     data_folder.mkdir(parents=True, exist_ok=True)
     file_location = data_folder / upload_file.filename
-    
-    with file_location.open('wb') as buffer:
+
+    with file_location.open("wb") as buffer:
         copyfileobj(upload_file.file, buffer)
 
     result_location = app.converter(file_location=file_location)
     return FileResponse(
         path=result_location,
         filename=result_location.name,
-        status_code=200, 
-        media_type='text/plain'
+        status_code=200,
+        media_type="text/plain",
     )
 
 
@@ -106,10 +112,10 @@ def web_start() -> None:
     sc = ServerConfig()
     uvicorn_run(
         f"{__name__}:web",
-        host = sc.host,
-        port = sc.port,
-        reload = sc.is_reload,
-        access_log=sc.access_log
+        host=sc.host,
+        port=sc.port,
+        reload=sc.is_reload,
+        access_log=sc.access_log,
     )
 
 
