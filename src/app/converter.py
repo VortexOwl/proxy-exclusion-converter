@@ -8,8 +8,12 @@ from shutil import rmtree
 # Project modules                                                             #
 # ----------------------------------------------------------------------------#
 from src.config import Config
-from src.logs import get_smart_logger, SmartLogger
-from src.utilities import Utilities 
+from src.logs import SmartLogger, get_smart_logger
+from src.utilities import Utilities
+
+# ----------------------------------------------------------------------------#
+# Application code                                                            #
+# ----------------------------------------------------------------------------#
 
 
 cfg: Config = Config()
@@ -24,14 +28,20 @@ class ApplicationService:
         """Преобразование файла в список исключений для прокси."""
         marker = cfg.marker
 
-        log.info("Начинается преобразование файла в список исключений для прокси.", pretty = True)
+        log.info(
+            "Начинается преобразование файла в список исключений для прокси.",
+            pretty=True,
+        )
         result_location = Path(file_location.parent / f"{file_location.stem}.txt")
-        with result_location.open('w', encoding = 'utf-8') as result_file:
-            for line in uts.read_file_line_by_line(file_path = file_location):
+        with result_location.open("w", encoding="utf-8") as result_file:
+            for line in uts.read_file_line_by_line(file_path=file_location):
                 if len(line) > 0 and line[0] == marker:
                     result_file.write(f"{line[1:]}")
 
-        log.info("Преобразование файла в список исключений для прокси прошло успешно.", pretty = True)
+        log.info(
+            "Преобразование файла в список исключений для прокси прошло успешно.",
+            pretty=True,
+        )
         return result_location
 
     @classmethod

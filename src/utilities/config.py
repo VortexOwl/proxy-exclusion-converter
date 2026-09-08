@@ -1,7 +1,6 @@
 # ----------------------------------------------------------------------------#
-# Embedded libraries                                                          #
+# Application code                                                            #
 # ----------------------------------------------------------------------------#
-from dataclasses import dataclass
 
 
 class BaseConfig:
