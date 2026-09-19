@@ -1,14 +1,15 @@
 # ----------------------------------------------------------------------------#
 # Embedded libraries                                                          #
 # ----------------------------------------------------------------------------#
-import asyncio
+from asyncio import create_task as a_create_task
+from asyncio import get_running_loop as a_get_running_loop
+from asyncio import sleep as a_sleep
 from contextlib import asynccontextmanager
 from os import getpid as os_getpid
 from os import kill as os_kill
 from pathlib import Path
 from shutil import copyfileobj
 from signal import SIGINT as signal_SIGINT
-from time import sleep as time_sleep
 from typing import Annotated
 from webbrowser import open as web_open
 
@@ -38,8 +39,8 @@ log.setLevel(cfg.log_level)
 
 async def open_browser():
     sc = ServerConfig()
-    await asyncio.sleep(1.5)
-    loop = asyncio.get_running_loop()
+    await a_sleep(1.5)
+    loop = a_get_running_loop()
     loop.run_in_executor(None, web_open, f"http://{sc.host}:{sc.port}")
 
 
@@ -48,7 +49,7 @@ async def lifespan(web: FastAPI):
     data_folder = Path(cfg.data_folder)
 
     log.info("🚀 Сервер запускается...", pretty=True)
-    asyncio.create_task(open_browser())
+    a_create_task(open_browser())
     yield
 
     log.info("🛑 Сервер останавливается...", pretty=True)
@@ -62,7 +63,7 @@ async def lifespan(web: FastAPI):
             f"Очистка временных файлов прошла с ошибкой: {err_clear_folder}",
             pretty=True,
         )
-    time_sleep(4.5)
+    a_sleep(4.5)
 
 
 web = FastAPI(
