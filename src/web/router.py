@@ -3,8 +3,11 @@
 # ----------------------------------------------------------------------------#
 import asyncio
 from contextlib import asynccontextmanager
+from os import getpid as os_getpid
+from os import kill as os_kill
 from pathlib import Path
 from shutil import copyfileobj
+from signal import SIGINT as signal_SIGINT
 from time import sleep as time_sleep
 from typing import Annotated
 from webbrowser import open as web_open
@@ -12,8 +15,8 @@ from webbrowser import open as web_open
 # ----------------------------------------------------------------------------#
 # External libraries                                                          #
 # ----------------------------------------------------------------------------#
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import FastAPI, File, UploadFile, status
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from uvicorn import run as uvicorn_run
 
 # ----------------------------------------------------------------------------#
@@ -77,6 +80,21 @@ web = FastAPI(
 @web.get("/", include_in_schema=False)
 async def root() -> RedirectResponse:
     return RedirectResponse(url="/docs", status_code=307)
+
+
+@web.get(
+    "/shutdown",
+    description="Посылает запрос на остановку веб-сервера.",
+    tags=["⚙️ Конфигурация"],
+    summary="Остановить веб-сервер",
+)
+async def shutdown() -> PlainTextResponse:
+    os_kill(os_getpid(), signal_SIGINT)
+    log.info(msg="Запрос на остановку сервера отправлен...", pretty=True)
+    return PlainTextResponse(
+        content="Запрос на остановку сервера отправлен.",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
 
 
 @web.post(
