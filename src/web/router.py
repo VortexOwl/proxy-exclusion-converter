@@ -21,7 +21,7 @@ from uvicorn import run as uvicorn_run
 # ----------------------------------------------------------------------------#
 from src.app import ApplicationService as app
 from src.config import Config, ServerConfig
-from src.logs import SmartLogger, get_smart_logger
+from src.logs import SmartLogger
 
 # ----------------------------------------------------------------------------#
 # Application code                                                            #
@@ -29,7 +29,7 @@ from src.logs import SmartLogger, get_smart_logger
 
 
 cfg: Config = Config()
-log: SmartLogger = get_smart_logger()
+log: SmartLogger = SmartLogger()
 log.setLevel(cfg.log_level)
 
 
