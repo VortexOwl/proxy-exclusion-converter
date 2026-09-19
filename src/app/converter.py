@@ -8,7 +8,7 @@ from shutil import rmtree
 # Project modules                                                             #
 # ----------------------------------------------------------------------------#
 from src.config import Config
-from src.logs import SmartLogger, get_smart_logger
+from src.logs import SmartLogger
 from src.utilities import Utilities
 
 # ----------------------------------------------------------------------------#
@@ -17,7 +17,7 @@ from src.utilities import Utilities
 
 
 cfg: Config = Config()
-log: SmartLogger = get_smart_logger()
+log: SmartLogger = SmartLogger()
 log.setLevel(cfg.log_level)
 uts: Utilities = Utilities()
 
