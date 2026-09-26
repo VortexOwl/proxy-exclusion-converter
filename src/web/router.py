@@ -243,7 +243,7 @@ async def convert_uploaded_file(
     cfg.marker = marker
 
     converted_content, path_converted_file = proxy_exception_converter.convert_file(
-        cfg=cfg, file_location=path_uploaded_file
+        cfg=cfg, path_source_file=path_uploaded_file
     )
 
     if cfg.is_save_file:
