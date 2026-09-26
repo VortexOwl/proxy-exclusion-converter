@@ -4,10 +4,10 @@
 from asyncio import create_task as a_create_task
 from asyncio import get_running_loop as a_get_running_loop
 from asyncio import sleep as a_sleep
+from enum import Enum
 from contextlib import asynccontextmanager
 from os import getpid as os_getpid
 from os import kill as os_kill
-from pathlib import Path
 from shutil import copyfileobj
 from signal import SIGINT as signal_SIGINT
 from typing import Annotated
@@ -16,7 +16,7 @@ from webbrowser import open as web_open
 # ----------------------------------------------------------------------------#
 # External libraries                                                          #
 # ----------------------------------------------------------------------------#
-from fastapi import FastAPI, File, UploadFile, status
+from fastapi import FastAPI, File, UploadFile, Query, status
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from uvicorn import run as uvicorn_run
 
@@ -32,12 +32,20 @@ from src.logs import SmartLogger
 # ----------------------------------------------------------------------------#
 
 
+app_converter = app.ConverterService()
+app_clear = app.ClearReportService()
 cfg: Config = Config()
 log: SmartLogger = SmartLogger()
 log.setLevel(cfg.log_level)
 
 
-async def open_browser():
+async def open_browser() -> None:
+    """
+    Открывает веб-интерфейс приложения в браузере.
+
+    Функция ожидает запуска сервера, после чего открывает URL приложения
+    в системном браузере. Используется только при запуске не в Docker-контейнере.
+    """
     sc = ServerConfig()
     await a_sleep(1.5)
     loop = a_get_running_loop()
@@ -46,8 +54,6 @@ async def open_browser():
 
 @asynccontextmanager
 async def lifespan(web: FastAPI):
-    data_folder = Path(cfg.data_folder)
-
     log.info("🚀 Сервер запускается...", pretty=True)
     a_create_task(open_browser())
     yield
@@ -55,7 +61,7 @@ async def lifespan(web: FastAPI):
     log.info("🛑 Сервер останавливается...", pretty=True)
     log.debug("Начинается очистка временных файлов.", pretty=True)
 
-    err_clear_folder = app.clear_tmp_folder(data_folder)
+    err_clear_folder = app_clear.clear_data_folder()
     if err_clear_folder is None:
         log.debug("Очистка временных файлов прошла успешно.", pretty=True)
     else:
@@ -76,6 +82,15 @@ web = FastAPI(
     },
     lifespan=lifespan,
 )
+
+
+class IsYesOrNo(str, Enum):
+    """
+    Перечисление вариантов ответа «да» или «нет».
+    """
+
+    YES = "Да"
+    NO = "Нет"
 
 
 @web.get("/", include_in_schema=False)
@@ -110,21 +125,47 @@ async def shutdown() -> PlainTextResponse:
 )
 async def web_converter(
     upload_file: Annotated[UploadFile, File(alias="Proxy exception")],
+    is_save_file: Annotated[
+        IsYesOrNo,
+        Query(
+            alias="saving file",
+            description="💾 Сохранить файл.",
+            examples=[IsYesOrNo.NO],
+        ),
+    ],
+    marker: Annotated[
+        str,
+        Query(
+            alias="marker",
+            description="📝 Маркер",
+            examples="*",
+        )
+    ]
 ) -> FileResponse:
-    data_folder = Path(cfg.data_folder)
-    data_folder.mkdir(parents=True, exist_ok=True)
+    data_folder = cfg.path_data_folder
     file_location = data_folder / upload_file.filename
+
+    data_folder.mkdir(parents=True, exist_ok=True)
 
     with file_location.open("wb") as buffer:
         copyfileobj(upload_file.file, buffer)
+    
+    if is_save_file == IsYesOrNo.YES:
+        cfg.is_save_file = True
+    else:
+        cfg.is_save_file = False
+    
+    cfg.marker = marker
 
-    result_location = app.converter(file_location=file_location)
-    return FileResponse(
-        path=result_location,
-        filename=result_location.name,
-        status_code=200,
-        media_type="text/plain",
-    )
+    converted, converted_location = app_converter.converter(cfg=cfg, file_location=file_location)
+    if cfg.is_save_file:
+        return FileResponse(
+            path=converted_location,
+            filename=converted_location.name,
+            status_code=status.HTTP_200_OK,
+            media_type="text/plain",
+        )
+    return PlainTextResponse(content=converted, status_code=status.HTTP_200_OK)
 
 
 def web_start() -> None:
