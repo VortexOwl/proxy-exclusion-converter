@@ -12,3 +12,4 @@ wheels/
 # Local project files
 /data/
 /logs/
+.vscode/
