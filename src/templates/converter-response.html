@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>📝 Конвертация</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <h1>📝 Результат конвертации исключений прокси</h1>
+
+        <pre>{{ converted }}</pre>
+
+        <button onclick="window.location.href='/converter'">Вернуться назад</button>
+        <button onclick="window.location.href='/shutdown'">Остановить сервер приложения</button>
+    </main>
+</body>
+</html>

@@ -16,8 +16,10 @@ from webbrowser import open as web_open
 # ----------------------------------------------------------------------------#
 # External libraries                                                          #
 # ----------------------------------------------------------------------------#
-from fastapi import FastAPI, File, UploadFile, Query, status
+from fastapi import FastAPI, File, UploadFile, Form, Request, status
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from uvicorn import run as uvicorn_run
 
 # ----------------------------------------------------------------------------#
@@ -37,6 +39,7 @@ app_clear = app.ClearReportService()
 cfg: Config = Config()
 log: SmartLogger = SmartLogger()
 log.setLevel(cfg.log_level)
+templates = Jinja2Templates(directory="src/templates")
 
 
 async def open_browser() -> None:
@@ -61,7 +64,7 @@ async def lifespan(web: FastAPI):
     log.info("🛑 Сервер останавливается...", pretty=True)
     log.debug("Начинается очистка временных файлов.", pretty=True)
 
-    err_clear_folder = app_clear.clear_data_folder()
+    err_clear_folder = await app_clear.clear_data_folder()
     if err_clear_folder is None:
         log.debug("Очистка временных файлов прошла успешно.", pretty=True)
     else:
@@ -69,7 +72,7 @@ async def lifespan(web: FastAPI):
             f"Очистка временных файлов прошла с ошибкой: {err_clear_folder}",
             pretty=True,
         )
-    a_sleep(4.5)
+    await a_sleep(4.5)
 
 
 web = FastAPI(
@@ -83,6 +86,8 @@ web = FastAPI(
     lifespan=lifespan,
 )
 
+web.mount(path="/static", app=StaticFiles(directory="src/static"), name="static")
+
 
 class IsYesOrNo(str, Enum):
     """
@@ -95,7 +100,15 @@ class IsYesOrNo(str, Enum):
 
 @web.get("/", include_in_schema=False)
 async def root() -> RedirectResponse:
-    return RedirectResponse(url="/docs", status_code=307)
+    """
+    Перенаправляет пользователя на HTML-форму конвертации.
+
+    Returns:
+        HTTP-редирект на страницу ``/converter``.
+    """
+    return RedirectResponse(
+        url="/converter", status_code=status.HTTP_307_TEMPORARY_REDIRECT
+    )
 
 
 @web.get(
@@ -104,12 +117,47 @@ async def root() -> RedirectResponse:
     tags=["⚙️ Конфигурация"],
     summary="Остановить веб-сервер",
 )
-async def shutdown() -> PlainTextResponse:
+async def shutdown(request: Request) -> PlainTextResponse:
+    """
+    Отправляет текущему процессу сигнал остановки веб-сервера.
+
+    Args:
+        request: Текущий HTTP-запрос. Используется для выбора формата
+            ответа: HTML или JSON.
+
+    Returns:
+        HTML-страница или JSON-ответ с подтверждением отправки сигнала.
+    """
     os_kill(os_getpid(), signal_SIGINT)
     log.info(msg="Запрос на остановку сервера отправлен...", pretty=True)
-    return PlainTextResponse(
-        content="Запрос на остановку сервера отправлен.",
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request=request,
+            name="shutdown.html",
+            status_code=status.HTTP_202_ACCEPTED,
+        )
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "message": "Запрос на остановку сервера отправлен",
+        },
         status_code=status.HTTP_202_ACCEPTED,
+    )
+
+
+@web.get(path="/converter")
+async def get_converter(request: Request):
+    """
+    Отображает HTML-форму поиска слов.
+
+    Args:
+        request: Текущий HTTP-запрос.
+
+    Returns:
+        HTML-страница с формой параметров поиска.
+    """
+    return templates.TemplateResponse(
+        request=request, name="converter-form.html", status_code=status.HTTP_200_OK
     )
 
 
@@ -123,24 +171,27 @@ async def shutdown() -> PlainTextResponse:
         f' Маркером строки с доменами служит "{cfg.marker}".'
     ),
 )
-async def web_converter(
-    upload_file: Annotated[UploadFile, File(alias="Proxy exception")],
+async def post_converter(
+    request: Request,
+    marker: Annotated[
+        str,
+        Form(
+            alias="marker",
+            description="🏷️ Маркер",
+            examples="*",
+        ),
+    ],
+    upload_file: Annotated[
+        UploadFile, File(alias="proxy exception", description="Файл исключений прокси")
+    ],
     is_save_file: Annotated[
         IsYesOrNo,
-        Query(
+        Form(
             alias="saving file",
             description="💾 Сохранить файл.",
             examples=[IsYesOrNo.NO],
         ),
     ],
-    marker: Annotated[
-        str,
-        Query(
-            alias="marker",
-            description="📝 Маркер",
-            examples="*",
-        )
-    ]
 ) -> FileResponse:
     data_folder = cfg.path_data_folder
     file_location = data_folder / upload_file.filename
@@ -149,15 +200,18 @@ async def web_converter(
 
     with file_location.open("wb") as buffer:
         copyfileobj(upload_file.file, buffer)
-    
+
     if is_save_file == IsYesOrNo.YES:
         cfg.is_save_file = True
     else:
         cfg.is_save_file = False
-    
+
     cfg.marker = marker
 
-    converted, converted_location = app_converter.converter(cfg=cfg, file_location=file_location)
+    converted, converted_location = app_converter.converter(
+        cfg=cfg, file_location=file_location
+    )
+
     if cfg.is_save_file:
         return FileResponse(
             path=converted_location,
@@ -165,6 +219,18 @@ async def web_converter(
             status_code=status.HTTP_200_OK,
             media_type="text/plain",
         )
+    
+    context = {
+            "converted": converted,
+        }
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request=request,
+            name="converter-response.html",
+            context=context,
+            status_code=status.HTTP_200_OK,
+        )
+    
     return PlainTextResponse(content=converted, status_code=status.HTTP_200_OK)
 
 
