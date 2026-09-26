@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>📝 Конвертация</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <h1>📝 Конвертация исключений прокси</h1>
+
+        <form method="post" action="/converter" enctype="multipart/form-data">
+            <label for="marker">
+                🏷️ Маркер.
+            </label>
+            <input
+                id="marker"
+                name="marker"
+                type="text"
+                required
+            >
+            
+            <label for="proxy_exception_file">
+                ⬆️ Загрузить файл исключений прокси.
+            </label>
+            <input 
+                id="proxy_exception_file" 
+                name="proxy exception" 
+                type="file" 
+                required
+            >
+
+            <label for="saving_file">
+                💾 Сохранить результат в файл?
+            </label>
+            <select id="saving_file" name="saving file">
+                <option value="Нет">Нет</option>
+                <option value="Да">Да</option>
+            </select>
+
+            <button type="submit">Конвертация</button>
+
+        </form>
+        <button onclick="window.location.href='/shutdown'">Остановить сервер приложения</button>
+    </main>
+</body>
+</html>
