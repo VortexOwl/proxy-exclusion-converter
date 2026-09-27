@@ -5,9 +5,9 @@ from asyncio import create_task as a_create_task
 from asyncio import get_running_loop as a_get_running_loop
 from asyncio import sleep as a_sleep
 from contextlib import asynccontextmanager
+from enum import Enum
 from os import getpid as os_getpid
 from os import kill as os_kill
-from pathlib import Path
 from shutil import copyfileobj
 from signal import SIGINT as signal_SIGINT
 from typing import Annotated
@@ -16,8 +16,16 @@ from webbrowser import open as web_open
 # ----------------------------------------------------------------------------#
 # External libraries                                                          #
 # ----------------------------------------------------------------------------#
-from fastapi import FastAPI, File, UploadFile, status
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+from fastapi import FastAPI, File, Form, Request, UploadFile, status
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from uvicorn import run as uvicorn_run
 
 # ----------------------------------------------------------------------------#
@@ -32,12 +40,25 @@ from src.logs import SmartLogger
 # ----------------------------------------------------------------------------#
 
 
+proxy_exception_converter = app.ProxyExceptionConverterService()
+tmp_files_clear = app.TemporaryFilesCleanupService()
+set_proxy_exception = app.SetProxyException()
 cfg: Config = Config()
 log: SmartLogger = SmartLogger()
 log.setLevel(cfg.log_level)
+template_renderer = Jinja2Templates(directory="src/templates")
 
 
-async def open_browser():
+async def open_web_interface() -> None:
+    """
+    Открывает веб-интерфейс приложения в браузере.
+
+    Функция ожидает запуска сервера, после чего открывает URL приложения
+    в системном браузере.
+
+    Notes:
+        Используется только при запуске вне Docker-контейнера.
+    """
     sc = ServerConfig()
     await a_sleep(1.5)
     loop = a_get_running_loop()
@@ -46,24 +67,31 @@ async def open_browser():
 
 @asynccontextmanager
 async def lifespan(web: FastAPI):
-    data_folder = Path(cfg.data_folder)
+    """
+    Управляет жизненным циклом FastAPI-приложения.
 
+    При запуске записывает сообщение в журнал и при необходимости открывает
+    веб-интерфейс в браузере. При завершении выполняет небольшую задержку,
+    чтобы корректно завершить фоновые операции.
+
+    Args:
+        web: Экземпляр FastAPI-приложения.
+
+    Yields:
+        Управление приложению на время его работы.
+
+    Returns:
+        Ничего не возвращает после завершения жизненного цикла приложения.
+    """
     log.info("🚀 Сервер запускается...", pretty=True)
-    a_create_task(open_browser())
+    a_create_task(open_web_interface())
     yield
 
     log.info("🛑 Сервер останавливается...", pretty=True)
     log.debug("Начинается очистка временных файлов.", pretty=True)
 
-    err_clear_folder = app.clear_tmp_folder(data_folder)
-    if err_clear_folder is None:
-        log.debug("Очистка временных файлов прошла успешно.", pretty=True)
-    else:
-        log.debug(
-            f"Очистка временных файлов прошла с ошибкой: {err_clear_folder}",
-            pretty=True,
-        )
-    a_sleep(4.5)
+    await tmp_files_clear.clear_temporary_files()
+    await a_sleep(4.5)
 
 
 web = FastAPI(
@@ -77,10 +105,29 @@ web = FastAPI(
     lifespan=lifespan,
 )
 
+web.mount(path="/static", app=StaticFiles(directory="src/static"), name="static")
+
+
+class IsYesOrNo(str, Enum):
+    """
+    Перечисление вариантов ответа «да» или «нет».
+    """
+
+    YES = "Да"
+    NO = "Нет"
+
 
 @web.get("/", include_in_schema=False)
-async def root() -> RedirectResponse:
-    return RedirectResponse(url="/docs", status_code=307)
+async def redirect() -> RedirectResponse:
+    """
+    Перенаправляет пользователя на HTML-форму конвертации.
+
+    Returns:
+        HTTP-редирект на страницу ``/converter``.
+    """
+    return RedirectResponse(
+        url="/converter", status_code=status.HTTP_307_TEMPORARY_REDIRECT
+    )
 
 
 @web.get(
@@ -89,12 +136,47 @@ async def root() -> RedirectResponse:
     tags=["⚙️ Конфигурация"],
     summary="Остановить веб-сервер",
 )
-async def shutdown() -> PlainTextResponse:
+async def shutdown(request: Request) -> PlainTextResponse:
+    """
+    Отправляет текущему процессу сигнал остановки веб-сервера.
+
+    Args:
+        request: Текущий HTTP-запрос. Используется для выбора формата
+            ответа: HTML или JSON.
+
+    Returns:
+        HTML-страница или JSON-ответ с подтверждением отправки сигнала.
+    """
     os_kill(os_getpid(), signal_SIGINT)
     log.info(msg="Запрос на остановку сервера отправлен...", pretty=True)
-    return PlainTextResponse(
-        content="Запрос на остановку сервера отправлен.",
+    if "text/html" in request.headers.get("accept", ""):
+        return template_renderer.TemplateResponse(
+            request=request,
+            name="shutdown.html",
+            status_code=status.HTTP_202_ACCEPTED,
+        )
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "message": "Запрос на остановку сервера отправлен",
+        },
         status_code=status.HTTP_202_ACCEPTED,
+    )
+
+
+@web.get(path="/converter")
+async def show_converter_form(request: Request):
+    """
+    Отображает HTML-форму поиска слов.
+
+    Args:
+        request: Текущий HTTP-запрос.
+
+    Returns:
+        HTML-страница с формой параметров поиска.
+    """
+    return template_renderer.TemplateResponse(
+        request=request, name="converter-form.html", status_code=status.HTTP_200_OK
     )
 
 
@@ -108,26 +190,112 @@ async def shutdown() -> PlainTextResponse:
         f' Маркером строки с доменами служит "{cfg.marker}".'
     ),
 )
-async def web_converter(
-    upload_file: Annotated[UploadFile, File(alias="Proxy exception")],
+async def convert_uploaded_file(
+    request: Request,
+    marker: Annotated[
+        str,
+        Form(
+            alias="marker",
+            description="🏷️ Маркер",
+            examples="*",
+        ),
+    ],
+    upload_file: Annotated[
+        UploadFile, File(alias="proxy exception", description="Файл исключений прокси")
+    ],
+    is_save_file: Annotated[
+        IsYesOrNo,
+        Form(
+            alias="saving file",
+            description="💾 Сохранить файл.",
+            examples=[IsYesOrNo.NO],
+        ),
+    ],
 ) -> FileResponse:
-    data_folder = Path(cfg.data_folder)
-    data_folder.mkdir(parents=True, exist_ok=True)
-    file_location = data_folder / upload_file.filename
+    """
+    Конвертирует загруженный файл с исключениями прокси.
 
-    with file_location.open("wb") as buffer:
+    Извлекает домены из загруженного Markdown-файла и возвращает
+    результат в виде файла, HTML-страницы или обычного текста.
+
+    Args:
+        request: Текущий HTTP-запрос.
+        marker: Маркер строк, содержащих домены.
+        upload_file: Загруженный файл с исключениями прокси.
+        is_save_file: Флаг сохранения результата в отдельный файл.
+
+    Returns:
+        Результат конвертации в формате файла, HTML-страницы или текста.
+    """
+    tmp_files_directory = cfg.path_tmp_folder
+    path_uploaded_file = tmp_files_directory / upload_file.filename
+
+    tmp_files_directory.mkdir(parents=True, exist_ok=True)
+
+    with path_uploaded_file.open("wb") as buffer:
         copyfileobj(upload_file.file, buffer)
 
-    result_location = app.converter(file_location=file_location)
-    return FileResponse(
-        path=result_location,
-        filename=result_location.name,
-        status_code=200,
-        media_type="text/plain",
+    if is_save_file == IsYesOrNo.YES:
+        cfg.is_save_file = True
+    else:
+        cfg.is_save_file = False
+
+    cfg.marker = marker
+
+    converted_content, path_converted_file = proxy_exception_converter.convert_file(
+        cfg=cfg, path_source_file=path_uploaded_file
+    )
+
+    if cfg.is_save_file:
+        return FileResponse(
+            path=path_converted_file,
+            filename=path_converted_file.name,
+            status_code=status.HTTP_200_OK,
+            media_type="text/plain",
+        )
+
+    context = {
+        "converted_content": converted_content,
+    }
+    if "text/html" in request.headers.get("accept", ""):
+        return template_renderer.TemplateResponse(
+            request=request,
+            name="converter-response.html",
+            context=context,
+            status_code=status.HTTP_200_OK,
+        )
+
+    return PlainTextResponse(content=converted_content, status_code=status.HTTP_200_OK)
+
+
+@web.post(path="/set-proxy-exception/firefox")
+async def set_proxy_exception_firefox(
+    request: Request,
+    converted_content: Annotated[str, Form(alias="converted content")],
+) -> Response:
+    set_proxy_exception.set_proxy_firefox(cfg=cfg, converted_content=converted_content)
+    if "text/html" in request.headers.get("accept", ""):
+        return template_renderer.TemplateResponse(
+            request=request,
+            name="set-proxy-exception-response.html",
+            status_code=status.HTTP_200_OK,
+        )
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "message": "Список прокси обновлен. Изменения вступят в силу после перезагрузки браузера.",
+        },
+        status_code=status.HTTP_200_OK,
     )
 
 
-def web_start() -> None:
+def start_web_server() -> None:
+    """
+    Запускает FastAPI-приложение с помощью Uvicorn.
+
+    Параметры хоста, порта, режима перезагрузки и флага журнала доступа
+    считываются из конфигурации приложения.
+    """
     sc = ServerConfig()
     uvicorn_run(
         f"{__name__}:web",
@@ -139,4 +307,4 @@ def web_start() -> None:
 
 
 if __name__ == "__main__":
-    web_start()
+    start_web_server()

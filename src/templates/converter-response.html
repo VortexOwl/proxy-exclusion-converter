@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>📝 Конвертация</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <h1>📝 Результат конвертации исключений прокси</h1>
+
+        <pre>{{ converted_content }}</pre>
+
+        <form method="post" action="/set-proxy-exception/firefox" enctype="multipart/form-data">
+            <input type="hidden" id="converted_content" name="converted content" value="{{ converted_content }}">
+            <button type="submit">Обновить список исключений прокси FireFox</button>
+        </form>
+        
+
+        <button onclick="window.location.href='/converter'">Вернуться назад</button>
+        <button onclick="window.location.href='/shutdown'">Остановить сервер приложения</button>
+    </main>
+</body>
+</html>

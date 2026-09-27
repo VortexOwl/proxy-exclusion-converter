@@ -4,12 +4,20 @@
 from utilities.basic_utilities_project import add_workdir_in_PATH
 
 add_workdir_in_PATH()
-from src.web.router import web_start
+from src.web.router import start_web_server
+
+# ----------------------------------------------------------------------------#
+# Application code                                                            #
+# ----------------------------------------------------------------------------#
 
 
 def start() -> None:
-    """Запуск проекта"""
-    web_start()
+    """
+    Запускает приложение.
+
+    Функция инициализирует и запускает веб-сервер приложения.
+    """
+    start_web_server()
 
 
 if __name__ == "__main__":
