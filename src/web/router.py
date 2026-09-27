@@ -40,9 +40,9 @@ from src.logs import SmartLogger
 # ----------------------------------------------------------------------------#
 
 
-proxy_exception_converter = app.ProxyExceptionConverterService()
-tmp_files_clear = app.TemporaryFilesCleanupService()
-set_proxy_exception = app.SetProxyException()
+proxy_exception_converter = app.ProxyExceptionConverter()
+tmp_files_clear = app.TemporaryFileCleaner()
+set_proxy_exception = app.FirefoxProxySettings()
 cfg: Config = Config()
 log: SmartLogger = SmartLogger()
 log.setLevel(cfg.log_level)
@@ -90,7 +90,7 @@ async def lifespan(web: FastAPI):
     log.info("🛑 Сервер останавливается...", pretty=True)
     log.debug("Начинается очистка временных файлов.", pretty=True)
 
-    await tmp_files_clear.clear_temporary_files()
+    await tmp_files_clear.cleanup()
     await a_sleep(4.5)
 
 
@@ -242,7 +242,7 @@ async def convert_uploaded_file(
 
     cfg.marker = marker
 
-    converted_content, path_converted_file = proxy_exception_converter.convert_file(
+    converted_content, path_converted_file = proxy_exception_converter.convert(
         cfg=cfg, path_source_file=path_uploaded_file
     )
 
@@ -269,11 +269,33 @@ async def convert_uploaded_file(
 
 
 @web.post(path="/set-proxy-exception/firefox")
-async def set_proxy_exception_firefox(
+async def update_proxy_exceptions_firefox(
     request: Request,
     converted_content: Annotated[str, Form(alias="converted content")],
 ) -> Response:
-    set_proxy_exception.set_proxy_firefox(cfg=cfg, converted_content=converted_content)
+    """
+    Обновляет список исключений прокси в профиле Firefox.
+
+    Args:
+        request: Текущий HTTP-запрос. Используется для выбора формата
+            ответа: HTML или JSON.
+        converted_content: Список исключений прокси для записи в профиль
+            браузера.
+
+    Returns:
+        HTML-страница или JSON-ответ с результатом обновления настроек.
+    """
+    log.info(
+        msg="Запрос на обновление списка исключений прокси в профиле Firefox отправлен.",
+        pretty=True,
+    )
+    set_proxy_exception.update_proxy_exceptions(
+        cfg=cfg, proxy_content=converted_content
+    )
+    log.info(
+        msg="Список прокси обновлен. Изменения вступят в силу после перезагрузки браузера.",
+        pretty=True,
+    )
     if "text/html" in request.headers.get("accept", ""):
         return template_renderer.TemplateResponse(
             request=request,
@@ -284,6 +306,47 @@ async def set_proxy_exception_firefox(
         content={
             "status": "ok",
             "message": "Список прокси обновлен. Изменения вступят в силу после перезагрузки браузера.",
+        },
+        status_code=status.HTTP_200_OK,
+    )
+
+
+@web.post(path="/set-proxy-exception/rollback-browser-config")
+async def cleaning_up_changes(
+    request: Request, browser: Annotated[str, Form(alias="browser")]
+) -> Response:
+    """
+    Удаляет изменения настроек прокси из профиля браузера.
+
+    Args:
+        request: Текущий HTTP-запрос. Используется для выбора формата
+            ответа: HTML или JSON.
+        browser: Название браузера, отображаемое в ответе пользователю.
+
+    Returns:
+        HTML-страница или JSON-ответ с результатом очистки настроек.
+    """
+    log.info(
+        msg="Запрос на откат изменения конфигурации браузера отправлен.", pretty=True
+    )
+    set_proxy_exception.cleaning_up_changes_proxy_exceptions(
+        proxy_setting_name=cfg.proxy_exception_setting_name, cfg=cfg
+    )
+    context = {"browser_name": browser}
+    log.info(
+        msg="Проведен откат изменения конфигурации браузера приложением.", pretty=True
+    )
+    if "text/html" in request.headers.get("accept", ""):
+        return template_renderer.TemplateResponse(
+            request=request,
+            context=context,
+            name="rollback-browser-config.html",
+            status_code=status.HTTP_200_OK,
+        )
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "message": "Проведен откат изменения конфигурации браузера приложением.",
         },
         status_code=status.HTTP_200_OK,
     )

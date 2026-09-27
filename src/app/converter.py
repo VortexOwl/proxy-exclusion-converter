@@ -16,7 +16,7 @@ from src.utilities import Utilities as uts
 
 
 class ApplicationService:
-    class TemporaryFilesCleanupService:
+    class TemporaryFileCleaner:
         """
         Очищает директорию для хранения временных файлов.
         """
@@ -31,7 +31,7 @@ class ApplicationService:
             """
             self._cfg = cfg if cfg is not None else Config()
 
-        async def clear_temporary_files(self) -> dict[str, int | tuple[str]]:
+        async def cleanup(self) -> dict[str, int | tuple[str]]:
             """
             Очищает директорию временных файлов.
 
@@ -41,7 +41,7 @@ class ApplicationService:
             """
             return await uts.clearing_folder(clear_folder=self._cfg.tmp_folder)
 
-    class ProxyExceptionConverterService:
+    class ProxyExceptionConverter:
         """
         Преобразует файлы со списком исключений прокси.
         """
@@ -62,7 +62,7 @@ class ApplicationService:
             self._log = log if log is not None else SmartLogger()
             self._log.setLevel(self._cfg.log_level)
 
-        def convert_file(
+        def convert(
             self,
             path_source_file: Path,
             cfg: Config | None = None,
@@ -116,12 +116,16 @@ class ApplicationService:
             )
             return converted_content, path_output_file
 
-    class SetProxyException:
+    class FirefoxProxySettings:
         """
-        Изменяет список исключений прокси в браузере.
+        Изменяет список исключений прокси в браузере Firefox.
         """
 
-        def __init__(self, cfg: Config | None = None):
+        def __init__(
+            self,
+            cfg: Config | None = None,
+            log: SmartLogger | None = None
+        ):
             """
             Инициализирует сервис изменения списка исключений
             прокси в FireFox и его форках
@@ -129,29 +133,39 @@ class ApplicationService:
             Args:
                 cfg: Конфигурация приложения. Если не передана,
                     используется конфигурация по умолчанию.
+                log: Логгер приложения. Если не передан,
+                    создаётся новый экземпляр.
             """
             self._cfg = cfg if cfg is not None else Config()
+            self._log = log if log is not None else SmartLogger()
+            self._log.setLevel(self._cfg.log_level)
 
-        def set_proxy_firefox(
-            self, converted_content: str, cfg: Config | None = None
+        def update_proxy_exceptions(
+            self, proxy_content: str, cfg: Config | None = None
         ) -> None:
             """
-            Добавляет список исключений прокси в профиль Firefox.
+            Обновляет список исключений прокси в профиле Firefox.
+
+            Если в профиле уже существует настройка с указанным именем,
+            она удаляется перед добавлением нового списка исключений.
 
             Args:
-                converted_content: Список исключений прокси.
+                proxy_content: Список исключений прокси.
                 cfg: Конфигурация приложения. Если не передана,
                     используется конфигурация сервиса.
             """
             if cfg is None:
                 cfg = self._cfg
 
-            if converted_content != "" and converted_content[0] == " ":
-                converted_content = converted_content[1:]
+            if proxy_content != "" and proxy_content[0] == " ":
+                proxy_content = proxy_content[1:]
 
-            proxy_exception_name = "network.proxy.no_proxies_on"
-            set_proxy_pattern = (
-                f'user_pref("{proxy_exception_name}", "{converted_content}");'
+            self._log.debug(
+                msg="Запущен процесс обновления списка исключений прокси браузера FireFox",
+                pretty=True,
+            )
+            proxy_setting_line = (
+                f'user_pref("{cfg.proxy_exception_setting_name}", "{proxy_content}");'
             )
             path_user_js = cfg.path_browser_profile / "user.js"
 
@@ -160,7 +174,37 @@ class ApplicationService:
             user_js_content: list = [
                 line
                 for line in uts.read_file_line_by_line(file_path=path_user_js)
-                if proxy_exception_name not in line
+                if cfg.proxy_exception_setting_name not in line
             ]
-            user_js_content.append(f"\n{set_proxy_pattern}\n")
+            user_js_content.append(f"\n{proxy_setting_line}\n")
             path_user_js.write_text("\n".join(user_js_content) + "\n", encoding="utf-8")
+            self._log.debug(
+                msg="Завершен процесс обновления списка исключений прокси браузера FireFox",
+                pretty=True,
+            )
+
+        def cleaning_up_changes_proxy_exceptions(
+            self, proxy_setting_name: str, cfg: Config | None = None
+        ) -> None:
+            """
+            Удаляет настройку исключений прокси из профиля Firefox.
+
+            Args:
+                proxy_setting_name: Имя настройки прокси, которую необходимо
+                    удалить из файла профиля.
+                cfg: Конфигурация приложения. Если не передана,
+                    используется конфигурация сервиса.
+            """
+            if cfg is None:
+                cfg = self._cfg
+
+            path_user_js: Path = cfg.path_browser_profile / "user.js"
+            if path_user_js.is_file():
+                user_js_content: list = [
+                    line
+                    for line in uts.read_file_line_by_line(file_path=path_user_js)
+                    if proxy_setting_name not in line
+                ]
+                path_user_js.write_text(
+                    "\n".join(user_js_content) + "\n", encoding="utf-8"
+                )
