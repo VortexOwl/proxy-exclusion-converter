@@ -34,6 +34,7 @@ from uvicorn import run as uvicorn_run
 from src.app import ApplicationService as app
 from src.config import Config, ServerConfig
 from src.logs import SmartLogger
+from src.utilities import Utilities as uts
 
 # ----------------------------------------------------------------------------#
 # Application code                                                            #
@@ -46,7 +47,9 @@ set_proxy_exception = app.FirefoxProxySettings()
 cfg: Config = Config()
 log: SmartLogger = SmartLogger()
 log.setLevel(cfg.log_level)
-template_renderer = Jinja2Templates(directory="src/templates")
+template_renderer = Jinja2Templates(
+    directory=uts.resource_path(relative_path="src/templates")
+)
 
 
 async def open_web_interface() -> None:
@@ -105,7 +108,11 @@ web = FastAPI(
     lifespan=lifespan,
 )
 
-web.mount(path="/static", app=StaticFiles(directory="src/static"), name="static")
+web.mount(
+    path="/static",
+    app=StaticFiles(directory=uts.resource_path(relative_path="src/static")),
+    name="static",
+)
 
 
 class IsYesOrNo(str, Enum):
