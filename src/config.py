@@ -48,6 +48,7 @@ class Config(BaseSettings):
     is_save_file: bool = False
     log_level: int = 20 if getattr(sys, "frozen", False) else 10
     marker: str = "*"
+    proxy_exception_setting_name: str = "network.proxy.no_proxies_on"
     tmp_folder: str = "data"
     _default_profile_pattern: str = "*.default*"
 
