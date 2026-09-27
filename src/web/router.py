@@ -4,8 +4,8 @@
 from asyncio import create_task as a_create_task
 from asyncio import get_running_loop as a_get_running_loop
 from asyncio import sleep as a_sleep
-from enum import Enum
 from contextlib import asynccontextmanager
+from enum import Enum
 from os import getpid as os_getpid
 from os import kill as os_kill
 from shutil import copyfileobj
@@ -16,8 +16,14 @@ from webbrowser import open as web_open
 # ----------------------------------------------------------------------------#
 # External libraries                                                          #
 # ----------------------------------------------------------------------------#
-from fastapi import FastAPI, File, UploadFile, Form, Request, status
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+from fastapi import FastAPI, File, Form, Request, UploadFile, status
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from uvicorn import run as uvicorn_run
@@ -36,6 +42,7 @@ from src.logs import SmartLogger
 
 proxy_exception_converter = app.ProxyExceptionConverterService()
 tmp_files_clear = app.TemporaryFilesCleanupService()
+set_proxy_exception = app.SetProxyException()
 cfg: Config = Config()
 log: SmartLogger = SmartLogger()
 log.setLevel(cfg.log_level)
@@ -83,14 +90,7 @@ async def lifespan(web: FastAPI):
     log.info("🛑 Сервер останавливается...", pretty=True)
     log.debug("Начинается очистка временных файлов.", pretty=True)
 
-    err_clear_folder = await tmp_files_clear.clear_temporary_files()
-    if err_clear_folder is None:
-        log.debug("Очистка временных файлов прошла успешно.", pretty=True)
-    else:
-        log.debug(
-            f"Очистка временных файлов прошла с ошибкой: {err_clear_folder}",
-            pretty=True,
-        )
+    await tmp_files_clear.clear_temporary_files()
     await a_sleep(4.5)
 
 
@@ -227,7 +227,7 @@ async def convert_uploaded_file(
     Returns:
         Результат конвертации в формате файла, HTML-страницы или текста.
     """
-    tmp_files_directory = cfg.path_data_folder
+    tmp_files_directory = cfg.path_tmp_folder
     path_uploaded_file = tmp_files_directory / upload_file.filename
 
     tmp_files_directory.mkdir(parents=True, exist_ok=True)
@@ -255,7 +255,7 @@ async def convert_uploaded_file(
         )
 
     context = {
-        "converted": converted_content,
+        "converted_content": converted_content,
     }
     if "text/html" in request.headers.get("accept", ""):
         return template_renderer.TemplateResponse(
@@ -268,11 +268,32 @@ async def convert_uploaded_file(
     return PlainTextResponse(content=converted_content, status_code=status.HTTP_200_OK)
 
 
+@web.post(path="/set-proxy-exception/firefox")
+async def set_proxy_exception_firefox(
+    request: Request,
+    converted_content: Annotated[str, Form(alias="converted content")],
+) -> Response:
+    set_proxy_exception.set_proxy_firefox(cfg=cfg, converted_content=converted_content)
+    if "text/html" in request.headers.get("accept", ""):
+        return template_renderer.TemplateResponse(
+            request=request,
+            name="set-proxy-exception-response.html",
+            status_code=status.HTTP_200_OK,
+        )
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "message": "Список прокси обновлен. Изменения вступят в силу после перезагрузки браузера.",
+        },
+        status_code=status.HTTP_200_OK,
+    )
+
+
 def start_web_server() -> None:
     """
     Запускает FastAPI-приложение с помощью Uvicorn.
 
-    Параметры хоста, порта, режима перезагрузки и флага журнала доступа 
+    Параметры хоста, порта, режима перезагрузки и флага журнала доступа
     считываются из конфигурации приложения.
     """
     sc = ServerConfig()
