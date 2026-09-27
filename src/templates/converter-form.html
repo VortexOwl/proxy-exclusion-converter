@@ -43,9 +43,11 @@
         </form>
         
         <form method="post" action="/set-proxy-exception/rollback-browser-config">
-            <input id="browser", name="browser", value="Floorp", hidden>
+            <input type="hidden" id="browser", name="browser", value="Floorp", hidden>
             <button type="submit">Откатить изменения конфигурации браузера Floorp</button>
         </form>
+
+        <button onclick="window.location.href='/update-config'">Конфигурация приложения</button>
         <button onclick="window.location.href='/shutdown'">Остановить сервер приложения</button>
     </main>
 </body>

@@ -165,15 +165,15 @@ async def shutdown(request: Request) -> PlainTextResponse:
 
 
 @web.get(path="/converter")
-async def show_converter_form(request: Request):
+async def show_converter_form(request: Request) -> Response:
     """
-    Отображает HTML-форму поиска слов.
+    Отображает HTML-форму конвертации исключений прокси.
 
     Args:
         request: Текущий HTTP-запрос.
 
     Returns:
-        HTML-страница с формой параметров поиска.
+        HTML-страница с формой параметров конвертации исключений прокси.
     """
     return template_renderer.TemplateResponse(
         request=request, name="converter-form.html", status_code=status.HTTP_200_OK
@@ -347,6 +347,79 @@ async def cleaning_up_changes(
         content={
             "status": "ok",
             "message": "Проведен откат изменения конфигурации браузера приложением.",
+        },
+        status_code=status.HTTP_200_OK,
+    )
+
+
+@web.get(path="/update-config")
+async def get_config(request: Request) -> Response:
+    """
+    Отображает HTML-форму конфигурации приложения.
+
+    Args:
+        request: Текущий HTTP-запрос.
+
+    Returns:
+        HTML-страница с формой параметров конфигурации приложения.
+    """
+    return template_renderer.TemplateResponse(
+        request=request, name="config.html", status_code=status.HTTP_200_OK
+    )
+
+
+@web.post(path="/update-config")
+async def update_config(
+    request: Request,
+    is_default: Annotated[IsYesOrNo | None, Form(alias="is default")] = None,
+    browser_profile: Annotated[str | None, Form(alias="path profile")] = None,
+) -> Response:
+    """
+    Обновляет настройки приложения.
+
+    Если передан параметр ``is_default`` со значением «Да», используется
+    профиль браузера по умолчанию. Иначе сохраняется переданный путь
+    к пользовательскому профилю браузера.
+
+    Args:
+        request: Текущий HTTP-запрос. Используется для выбора формата
+            ответа: HTML или JSON.
+        is_default: Флаг использования профиля браузера по умолчанию.
+            Если выбран вариант «Да», пользовательский путь удаляется.
+        browser_profile: Путь к пользовательскому профилю браузера.
+            Если не передан, текущая настройка не изменяется.
+
+    Returns:
+        HTML-страница или JSON-ответ с результатом обновления конфигурации.
+    """
+    if is_default == IsYesOrNo.YES:
+        cfg.custom_browser_profile = None
+        if "text/html" in request.headers.get("accept", ""):
+            return template_renderer.TemplateResponse(
+                request=request,
+                name="config.html",
+                status_code=status.HTTP_200_OK,
+            )
+        return JSONResponse(
+            content={
+                "status": "ok",
+                "message": "Проведен откат изменения конфигурации приложения.",
+            },
+            status_code=status.HTTP_200_OK,
+        )
+    if browser_profile is not None:
+        cfg.custom_browser_profile = browser_profile
+
+    if "text/html" in request.headers.get("accept", ""):
+        return template_renderer.TemplateResponse(
+            request=request,
+            name="config.html",
+            status_code=status.HTTP_200_OK,
+        )
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "message": "Проведено обновление конфигурации приложения.",
         },
         status_code=status.HTTP_200_OK,
     )

@@ -176,8 +176,8 @@ class ApplicationService:
                 for line in uts.read_file_line_by_line(file_path=path_user_js)
                 if cfg.proxy_exception_setting_name not in line
             ]
-            user_js_content.append(f"\n{proxy_setting_line}\n")
-            path_user_js.write_text("\n".join(user_js_content) + "\n", encoding="utf-8")
+            user_js_content.append(f"{proxy_setting_line}\n")
+            path_user_js.write_text("\n".join(user_js_content), encoding="utf-8")
             self._log.debug(
                 msg="Завершен процесс обновления списка исключений прокси браузера FireFox",
                 pretty=True,
