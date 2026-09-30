@@ -93,6 +93,8 @@ async def lifespan(web: FastAPI):
     Returns:
         Ничего не возвращает после завершения жизненного цикла приложения.
     """
+    tmp_files_directory = cfg.path_tmp_folder
+
     log.info("🚀 Сервер запускается...", pretty=True)
     a_create_task(open_web_interface())
     yield
@@ -100,7 +102,8 @@ async def lifespan(web: FastAPI):
     log.info("🛑 Сервер останавливается...", pretty=True)
     log.debug("Начинается очистка временных файлов.", pretty=True)
 
-    await tmp_files_clear.cleanup()
+    if tmp_files_directory.exists():
+        await tmp_files_clear.cleanup(tmp_files_directory=tmp_files_directory)
     await a_sleep(4.5)
 
 
@@ -249,11 +252,7 @@ async def convert_uploaded_file(
     with path_uploaded_file.open("wb") as buffer:
         copyfileobj(upload_file.file, buffer)
 
-    if is_save_file == IsYesOrNo.YES:
-        cfg.is_save_file = True
-    else:
-        cfg.is_save_file = False
-
+    cfg.is_save_file = is_save_file == IsYesOrNo.YES
     cfg.marker = marker
 
     converted_content, path_converted_file = proxy_exception_converter.convert(
@@ -408,6 +407,7 @@ async def update_config(
     """
     if is_default == IsYesOrNo.YES:
         cfg.custom_browser_profile = None
+        log.info(msg="Установлен профиль по умолчанию.", pretty=True)
         if "text/html" in request.headers.get("accept", ""):
             return template_renderer.TemplateResponse(
                 request=request,
@@ -423,6 +423,7 @@ async def update_config(
         )
     if browser_profile is not None:
         cfg.custom_browser_profile = browser_profile
+        log.info(msg=f'Установлен профиль "{browser_profile}".', pretty=True)
 
     if "text/html" in request.headers.get("accept", ""):
         return template_renderer.TemplateResponse(
@@ -449,7 +450,9 @@ def start_web_server() -> None:
     try:
         uvicorn_server.run()
     except KeyboardInterrupt:
-        log.debug("🛑 Сервер остановлен пользователем через `Ctrl+Shift+C`.", pretty=True)
+        log.debug(
+            "🛑 Сервер остановлен пользователем через `Ctrl+Shift+C`.", pretty=True
+        )
 
 
 if __name__ == "__main__":
