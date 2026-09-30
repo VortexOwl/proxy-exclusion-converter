@@ -413,7 +413,7 @@ wheels = [
 ]
 
 [[package]]
-name = "proxy-exclusion-combinator"
+name = "proxy-exclusion-converter"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

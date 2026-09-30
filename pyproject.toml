@@ -1,5 +1,5 @@
 [project]
-name = "proxy-exclusion-combinator"
+name = "proxy-exclusion-converter"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
