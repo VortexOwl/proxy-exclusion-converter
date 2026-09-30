@@ -32,7 +32,9 @@ class Utilities:
                 yield line.strip()
 
     @classmethod
-    async def clearing_folder(cls, clear_folder: str) -> dict[str, int | tuple[str]]:
+    async def clearing_folder(
+        cls, clear_folder: str | Path
+    ) -> dict[str, int | tuple[str]]:
         """
         Асинхронно и безопасно очищает папку от файлов.
         Возвращает статистику по успешным удалениям и ошибкам.
