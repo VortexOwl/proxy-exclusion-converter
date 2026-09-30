@@ -31,15 +31,23 @@ class ApplicationService:
             """
             self._cfg = cfg if cfg is not None else Config()
 
-        async def cleanup(self) -> dict[str, int | tuple[str]]:
+        async def cleanup(
+            self, tmp_files_directory: str | Path | None = None
+        ) -> dict[str, int | tuple[str]]:
             """
             Очищает директорию временных файлов.
+
+            Args:
+                tmp_files_directory: Директория временных файлов. Если не передана,
+                    используется директория временных файлов из конфигурации.
 
             Returns:
                 Словарь со статистикой удаления: количеством успешно
                 удалённых файлов и количеством ошибок.
             """
-            return await uts.clearing_folder(clear_folder=self._cfg.tmp_folder)
+            if tmp_files_directory is None:
+                tmp_files_directory = self._cfg.tmp_folder
+            return await uts.clearing_folder(clear_folder=tmp_files_directory)
 
     class ProxyExceptionConverter:
         """
@@ -121,11 +129,7 @@ class ApplicationService:
         Изменяет список исключений прокси в браузере Firefox.
         """
 
-        def __init__(
-            self,
-            cfg: Config | None = None,
-            log: SmartLogger | None = None
-        ):
+        def __init__(self, cfg: Config | None = None, log: SmartLogger | None = None):
             """
             Инициализирует сервис изменения списка исключений
             прокси в FireFox и его форках
@@ -176,8 +180,8 @@ class ApplicationService:
                 for line in uts.read_file_line_by_line(file_path=path_user_js)
                 if cfg.proxy_exception_setting_name not in line
             ]
-            user_js_content.append(f"\n{proxy_setting_line}\n")
-            path_user_js.write_text("\n".join(user_js_content) + "\n", encoding="utf-8")
+            user_js_content.append(f"{proxy_setting_line}\n")
+            path_user_js.write_text("\n".join(user_js_content), encoding="utf-8")
             self._log.debug(
                 msg="Завершен процесс обновления списка исключений прокси браузера FireFox",
                 pretty=True,

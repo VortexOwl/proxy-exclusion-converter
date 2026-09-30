@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>⚙️ Конфигурация</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <main class="container">
+        <h1>⚙️ Конфигурация</h1>
+
+        <form method="post" action="/update-config">
+            <label for="path_profile">
+                📂 Путь к профилю.
+            </label>
+            <input
+                id="path_profile"
+                name="path profile"
+                type="text"
+            >
+
+            <button type="submit">Изменить конфигурацию</button>
+        </form>
+        <form method="post" action="/update-config">
+            <input type="hidden" id="is_default" name="is default" value="Да" hidden>
+            <button type="submit">Установить значения по умолчанию</button>
+        </form>
+        
+        <button onclick="window.location.href='/converter'">Вернуться назад</button>
+        <button onclick="window.location.href='/shutdown'">Остановить сервер приложения</button>
+    </main>
+</body>
+</html>

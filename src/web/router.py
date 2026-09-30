@@ -6,10 +6,7 @@ from asyncio import get_running_loop as a_get_running_loop
 from asyncio import sleep as a_sleep
 from contextlib import asynccontextmanager
 from enum import Enum
-from os import getpid as os_getpid
-from os import kill as os_kill
 from shutil import copyfileobj
-from signal import SIGINT as signal_SIGINT
 from typing import Annotated
 from webbrowser import open as web_open
 
@@ -26,7 +23,8 @@ from fastapi.responses import (
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from uvicorn import run as uvicorn_run
+from uvicorn import Config as UvicornConfig
+from uvicorn import Server as UvicornServer
 
 # ----------------------------------------------------------------------------#
 # Project modules                                                             #
@@ -34,6 +32,7 @@ from uvicorn import run as uvicorn_run
 from src.app import ApplicationService as app
 from src.config import Config, ServerConfig
 from src.logs import SmartLogger
+from src.utilities import Utilities as uts
 
 # ----------------------------------------------------------------------------#
 # Application code                                                            #
@@ -46,7 +45,18 @@ set_proxy_exception = app.FirefoxProxySettings()
 cfg: Config = Config()
 log: SmartLogger = SmartLogger()
 log.setLevel(cfg.log_level)
-template_renderer = Jinja2Templates(directory="src/templates")
+template_renderer = Jinja2Templates(
+    directory=uts.resource_path(relative_path="src/templates")
+)
+sc: ServerConfig = ServerConfig()
+uvicorn_config: UvicornConfig = UvicornConfig(
+    f"{__name__}:web",
+    host=sc.host,
+    port=sc.port,
+    reload=sc.is_reload,
+    access_log=sc.access_log,
+)
+uvicorn_server: UvicornServer = UvicornServer(uvicorn_config)
 
 
 async def open_web_interface() -> None:
@@ -83,6 +93,8 @@ async def lifespan(web: FastAPI):
     Returns:
         Ничего не возвращает после завершения жизненного цикла приложения.
     """
+    tmp_files_directory = cfg.path_tmp_folder
+
     log.info("🚀 Сервер запускается...", pretty=True)
     a_create_task(open_web_interface())
     yield
@@ -90,7 +102,8 @@ async def lifespan(web: FastAPI):
     log.info("🛑 Сервер останавливается...", pretty=True)
     log.debug("Начинается очистка временных файлов.", pretty=True)
 
-    await tmp_files_clear.cleanup()
+    if tmp_files_directory.exists():
+        await tmp_files_clear.cleanup(tmp_files_directory=tmp_files_directory)
     await a_sleep(4.5)
 
 
@@ -105,7 +118,11 @@ web = FastAPI(
     lifespan=lifespan,
 )
 
-web.mount(path="/static", app=StaticFiles(directory="src/static"), name="static")
+web.mount(
+    path="/static",
+    app=StaticFiles(directory=uts.resource_path(relative_path="src/static")),
+    name="static",
+)
 
 
 class IsYesOrNo(str, Enum):
@@ -136,9 +153,9 @@ async def redirect() -> RedirectResponse:
     tags=["⚙️ Конфигурация"],
     summary="Остановить веб-сервер",
 )
-async def shutdown(request: Request) -> PlainTextResponse:
+async def shutdown(request: Request) -> Response:
     """
-    Отправляет текущему процессу сигнал остановки веб-сервера.
+    Отправляет запрос на остановку веб-сервера.
 
     Args:
         request: Текущий HTTP-запрос. Используется для выбора формата
@@ -147,7 +164,7 @@ async def shutdown(request: Request) -> PlainTextResponse:
     Returns:
         HTML-страница или JSON-ответ с подтверждением отправки сигнала.
     """
-    os_kill(os_getpid(), signal_SIGINT)
+    uvicorn_server.should_exit = True
     log.info(msg="Запрос на остановку сервера отправлен...", pretty=True)
     if "text/html" in request.headers.get("accept", ""):
         return template_renderer.TemplateResponse(
@@ -165,15 +182,15 @@ async def shutdown(request: Request) -> PlainTextResponse:
 
 
 @web.get(path="/converter")
-async def show_converter_form(request: Request):
+async def show_converter_form(request: Request) -> Response:
     """
-    Отображает HTML-форму поиска слов.
+    Отображает HTML-форму конвертации исключений прокси.
 
     Args:
         request: Текущий HTTP-запрос.
 
     Returns:
-        HTML-страница с формой параметров поиска.
+        HTML-страница с формой параметров конвертации исключений прокси.
     """
     return template_renderer.TemplateResponse(
         request=request, name="converter-form.html", status_code=status.HTTP_200_OK
@@ -235,11 +252,7 @@ async def convert_uploaded_file(
     with path_uploaded_file.open("wb") as buffer:
         copyfileobj(upload_file.file, buffer)
 
-    if is_save_file == IsYesOrNo.YES:
-        cfg.is_save_file = True
-    else:
-        cfg.is_save_file = False
-
+    cfg.is_save_file = is_save_file == IsYesOrNo.YES
     cfg.marker = marker
 
     converted_content, path_converted_file = proxy_exception_converter.convert(
@@ -352,21 +365,94 @@ async def cleaning_up_changes(
     )
 
 
+@web.get(path="/update-config")
+async def get_config(request: Request) -> Response:
+    """
+    Отображает HTML-форму конфигурации приложения.
+
+    Args:
+        request: Текущий HTTP-запрос.
+
+    Returns:
+        HTML-страница с формой параметров конфигурации приложения.
+    """
+    return template_renderer.TemplateResponse(
+        request=request, name="config.html", status_code=status.HTTP_200_OK
+    )
+
+
+@web.post(path="/update-config")
+async def update_config(
+    request: Request,
+    is_default: Annotated[IsYesOrNo | None, Form(alias="is default")] = None,
+    browser_profile: Annotated[str | None, Form(alias="path profile")] = None,
+) -> Response:
+    """
+    Обновляет настройки приложения.
+
+    Если передан параметр ``is_default`` со значением «Да», используется
+    профиль браузера по умолчанию. Иначе сохраняется переданный путь
+    к пользовательскому профилю браузера.
+
+    Args:
+        request: Текущий HTTP-запрос. Используется для выбора формата
+            ответа: HTML или JSON.
+        is_default: Флаг использования профиля браузера по умолчанию.
+            Если выбран вариант «Да», пользовательский путь удаляется.
+        browser_profile: Путь к пользовательскому профилю браузера.
+            Если не передан, текущая настройка не изменяется.
+
+    Returns:
+        HTML-страница или JSON-ответ с результатом обновления конфигурации.
+    """
+    if is_default == IsYesOrNo.YES:
+        cfg.custom_browser_profile = None
+        log.info(msg="Установлен профиль по умолчанию.", pretty=True)
+        if "text/html" in request.headers.get("accept", ""):
+            return template_renderer.TemplateResponse(
+                request=request,
+                name="config.html",
+                status_code=status.HTTP_200_OK,
+            )
+        return JSONResponse(
+            content={
+                "status": "ok",
+                "message": "Проведен откат изменения конфигурации приложения.",
+            },
+            status_code=status.HTTP_200_OK,
+        )
+    if browser_profile is not None:
+        cfg.custom_browser_profile = browser_profile
+        log.info(msg=f'Установлен профиль "{browser_profile}".', pretty=True)
+
+    if "text/html" in request.headers.get("accept", ""):
+        return template_renderer.TemplateResponse(
+            request=request,
+            name="config.html",
+            status_code=status.HTTP_200_OK,
+        )
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "message": "Проведено обновление конфигурации приложения.",
+        },
+        status_code=status.HTTP_200_OK,
+    )
+
+
 def start_web_server() -> None:
     """
     Запускает FastAPI-приложение с помощью Uvicorn.
 
-    Параметры хоста, порта, режима перезагрузки и флага журнала доступа
+    Параметры хоста, порта, режима перезагрузки и журнала доступа
     считываются из конфигурации приложения.
     """
-    sc = ServerConfig()
-    uvicorn_run(
-        f"{__name__}:web",
-        host=sc.host,
-        port=sc.port,
-        reload=sc.is_reload,
-        access_log=sc.access_log,
-    )
+    try:
+        uvicorn_server.run()
+    except KeyboardInterrupt:
+        log.debug(
+            "🛑 Сервер остановлен пользователем через `Ctrl+Shift+C`.", pretty=True
+        )
 
 
 if __name__ == "__main__":
