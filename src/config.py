@@ -60,7 +60,7 @@ class Config(BaseSettings):
         Returns:
             Путь к директории, заданной в настройке ``tmp_folder``.
         """
-        return Path(self.tmp_folder)
+        return Path.cwd() / Path(self.tmp_folder)
 
     @property
     def path_browser_profile(self) -> Path | None:
