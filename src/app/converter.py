@@ -75,6 +75,7 @@ class ApplicationService:
             path_source_file: Path,
             cfg: Config | None = None,
             marker: str | None = None,
+            is_first_suitable_line: bool = True,
         ) -> tuple[str, Path | None]:
             """
             Преобразует файл в список исключений для прокси.
@@ -108,7 +109,11 @@ class ApplicationService:
 
             for line in uts.read_file_line_by_line(file_path=path_source_file):
                 if len(line) > 0 and line[0] == marker:
-                    converted_content = f"{converted_content}{line[1:]}"
+                    if is_first_suitable_line:
+                        converted_content = f"{converted_content}{line[2:]}"
+                        is_first_suitable_line = False
+                    else:
+                        converted_content = f"{converted_content}{line[1:]}"
 
             if cfg.is_save_file:
                 path_output_file = Path(
